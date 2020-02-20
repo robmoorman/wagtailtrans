@@ -27,6 +27,11 @@ class LanguageModelAdmin(ModelAdmin):
 modeladmin_register(LanguageModelAdmin)
 
 
+@hooks.register('before_create_page')
+def before_create_page(request, parent_page, page_class):
+    pass
+
+
 @hooks.register('after_create_page')
 def synchronize_page_create(request, page):
     print("Wagtailtrans:", "create", page)

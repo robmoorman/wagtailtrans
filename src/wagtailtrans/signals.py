@@ -46,9 +46,8 @@ def synchronize_trees(page, created=False):
 
     # Assign default language to new page
     if created and not language:
-        inherited_page = page.get_parent()
         language = Language.objects.default_for_site(site=site)
-        TranslatablePageItem.objects.create(page=page, inherited_page=inherited_page, language=language)
+        TranslatablePageItem.objects.create(page=page, language=language)
 
     is_default_language = language.is_default if language else None
     other_languages = Language.objects.filter(is_default=False)
@@ -149,7 +148,7 @@ def create_language_permissions_and_group(sender, instance, **kwargs):
     create_group_permissions(group, instance)
 
 
-def force_parent_language(**kwargs):
+def force_parent_language(page, parent):
     """Force the initial language of the first page, before creating..
 
     When adding a homepage to a site, the initial language should be set.
@@ -158,9 +157,6 @@ def force_parent_language(**kwargs):
     language differs from the database default.
 
     """
-    page = kwargs.get('page')
-    parent = kwargs.get('parent')
-
     #: Force the page language according to the parent, when the parent
     #: has no language set and is a site root page, force the default language
     #: For now we assume there isn't more than 1 site rooted at the parent.
@@ -181,18 +177,20 @@ def register_signal_handlers():
 
     """
     # TODO: Make this optional via settings
-    post_save.connect(create_language_permissions_and_group, sender=Language)
-    init_new_page.connect(force_parent_language)
+    # post_save.connect(create_language_permissions_and_group, sender=Language)
+    # init_new_page.connect(force_parent_language)
+    
+    pass
 
-    if get_wagtailtrans_setting('SYNC_TREE'):
-        if get_wagtailtrans_setting('LANGUAGES_PER_SITE'):
-            m2m_changed.connect(update_language_trees_for_site, sender=SiteLanguages.other_languages.through)
-        else:
-            post_save.connect(create_new_language_tree, sender=Language)
-
-        # for model in get_page_models():
-        #     if hasattr(model, 'create_translation'):
-        #         post_save.connect(synchronize_trees, sender=model)
-        #
-        #     if hasattr(model, 'get_translations'):
-        #         pre_delete.connect(synchronize_deletions, sender=model)
+    # if get_wagtailtrans_setting('SYNC_TREE'):
+    #     if get_wagtailtrans_setting('LANGUAGES_PER_SITE'):
+    #         m2m_changed.connect(update_language_trees_for_site, sender=SiteLanguages.other_languages.through)
+    #     else:
+    #         post_save.connect(create_new_language_tree, sender=Language)
+    #
+    #     for model in get_page_models():
+    #         if hasattr(model, 'create_translation'):
+    #             post_save.connect(synchronize_trees, sender=model)
+    #
+    #         if hasattr(model, 'get_translations'):
+    #             pre_delete.connect(synchronize_deletions, sender=model)

@@ -214,9 +214,7 @@ class TranslatablePageMixin:
         update_attrs = {
             'title': self.title,
             'slug': slug,
-            'language': language,
             'live': False,
-            'canonical_page': self,
         }
 
         if copy_fields:
@@ -229,6 +227,12 @@ class TranslatablePageMixin:
             model_class = self.content_type.model_class()
             new_page = model_class(**update_attrs)
             parent.add_child(instance=new_page)
+
+        TranslatablePageItem.objects.create(
+            page=new_page,
+            inherited_page=self,
+            language=language,
+        )
 
         return new_page
 
@@ -380,14 +384,15 @@ class TranslatableSiteRootPage(Page):
     parent_page_types = ['wagtailcore.Page']
 
     def serve(self, request, *args, **kwargs):
-        """Serve TranslatablePage in the correct language
+        """Serve TranslatablePage in the correct language.
 
         :param request: request object
         :return: Http302 or Http404
 
         """
         language = get_user_language(request)
-        candidates = TranslatablePageItem.objects.filter(page__live=True, inherited_page=self, language=language)
+        root_pages = self.get_children().live()
+        candidates = TranslatablePageItem.objects.filter(page__in=root_pages, language=language)
         try:
             translation = candidates.get()
             return redirect(translation.page.url)

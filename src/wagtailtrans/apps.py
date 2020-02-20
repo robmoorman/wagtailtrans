@@ -11,6 +11,6 @@ class WagtailTransConfig(AppConfig):
     name = 'wagtailtrans'
     verbose_name = _("Wagtail Translations")
 
-    # def ready(self):
-    #     from wagtailtrans.signals import register_signal_handlers
-    #     register_signal_handlers()
+    def ready(self):
+        from wagtailtrans.signals import register_signal_handlers
+        register_signal_handlers()
