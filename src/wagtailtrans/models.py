@@ -166,7 +166,65 @@ class TranslatablePageItem(models.Model):
 
 
 class TranslatablePageMixin:
-    pass
+    @cached_property
+    def language(self):
+        item = self.translatable_page_item
+        if item:
+            return item.language
+        return None
+
+    @cached_property
+    def translatable_page_item(self):
+        return TranslatablePageItem.objects.filter(page=self).first()
+
+    def get_admin_display_title(self):
+        return "{} ({})".format(super().get_admin_display_title(), self.language)
+
+    def create_translation(self, language, copy_fields=False, parent=None):
+        """Create a translation for this page. If tree syncing is enabled the
+        copy will also be moved to the corresponding language tree.
+
+        :param language: Language instance
+        :param copy_fields: Boolean specifying if the content should be copied
+        :param parent: Parent page instance for the translation
+        :return: new Translated page (or subclass) instance
+
+        """
+        print("Create translation:", self, "For language:", language)
+        
+        return
+        
+        if self.has_translation(language):
+            raise Exception("Translation already exists")
+
+        if not parent:
+            parent = self.get_translation_parent(language)
+
+        if self.slug == self.language.code:
+            slug = language.code
+        else:
+            slug = '%s-%s' % (self.slug, language.code)
+
+        update_attrs = {
+            'title': self.title,
+            'slug': slug,
+            'language': language,
+            'live': False,
+            'canonical_page': self,
+        }
+
+        if copy_fields:
+            kwargs = {'update_attrs': update_attrs}
+            if parent != self.get_parent():
+                kwargs['to'] = parent
+
+            new_page = self.copy(**kwargs)
+        else:
+            model_class = self.content_type.model_class()
+            new_page = model_class(**update_attrs)
+            parent.add_child(instance=new_page)
+
+        return new_page
 
 
 class TranslatablePage(Page):

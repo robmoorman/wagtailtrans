@@ -7,7 +7,7 @@ from wagtail.admin.signals import init_new_page
 from wagtail.core.models import Site, get_page_models
 
 from wagtailtrans.conf import get_wagtailtrans_setting
-from wagtailtrans.models import Language, SiteLanguages, TranslatablePage
+from wagtailtrans.models import Language, SiteLanguages, TranslatablePage, TranslatablePageItem
 from wagtailtrans.permissions import create_group_permissions, get_or_create_language_group
 
 
@@ -24,33 +24,42 @@ def disable_for_loaddata(signal_handler):
 
 
 @disable_for_loaddata
-def synchronize_trees(sender, instance, **kwargs):
-    """synchronize the translation trees when
-    a TranslatablePage is created.
+def synchronize_trees(page, created=False):
+    """Synchronize the translation trees when
+    a TranslatablePageMixin is created.
 
-    :param sender: Sender model
-    :param instance: TranslatablePage instance
-    :param kwargs: kwargs e.g. created
+    :param instance: TranslatablePageMixin instance
+    :param created: Page created True of False
 
     """
     try:
-        site = instance.get_site()
+        site = page.get_site()
     except ObjectDoesNotExist:
         return
 
-    if get_wagtailtrans_setting('LANGUAGES_PER_SITE'):
-        site_default = site.sitelanguages.default_language
-        is_default_language = instance.language == site_default
-        other_languages = site.sitelanguages.other_languages.all()
-    else:
-        is_default_language = instance.language.is_default
-        other_languages = Language.objects.filter(is_default=False)
+    # if get_wagtailtrans_setting('LANGUAGES_PER_SITE'):
+    #     site_default = site.sitelanguages.default_language
+    #     is_default_language = instance.language == site_default
+    #     other_languages = site.sitelanguages.other_languages.all()
 
-    if not kwargs.get('created') or not getattr(instance, 'language', False) or not is_default_language:
+    language = page.language
+
+    # Assign default language to new page
+    if created and not language:
+        inherited_page = page.get_parent()
+        language = Language.objects.default_for_site(site=site)
+        TranslatablePageItem.objects.create(page=page, inherited_page=inherited_page, language=language)
+
+    is_default_language = language.is_default if language else None
+    other_languages = Language.objects.filter(is_default=False)
+
+    # Page is not eligable for triggering creation of translations
+    if not created or not language or not is_default_language:
         return
 
+    # Create translations
     for lang in other_languages:
-        instance.create_translation(language=lang, copy_fields=True)
+        page.create_translation(language=lang, copy_fields=True)
 
 
 @disable_for_loaddata
@@ -171,17 +180,19 @@ def register_signal_handlers():
     get_page_model.
 
     """
+    # TODO: Make this optional via settings
     post_save.connect(create_language_permissions_and_group, sender=Language)
     init_new_page.connect(force_parent_language)
+
     if get_wagtailtrans_setting('SYNC_TREE'):
         if get_wagtailtrans_setting('LANGUAGES_PER_SITE'):
             m2m_changed.connect(update_language_trees_for_site, sender=SiteLanguages.other_languages.through)
         else:
             post_save.connect(create_new_language_tree, sender=Language)
 
-        for model in get_page_models():
-            if hasattr(model, 'create_translation'):
-                post_save.connect(synchronize_trees, sender=model)
-
-            if hasattr(model, 'get_translations'):
-                pre_delete.connect(synchronize_deletions, sender=model)
+        # for model in get_page_models():
+        #     if hasattr(model, 'create_translation'):
+        #         post_save.connect(synchronize_trees, sender=model)
+        #
+        #     if hasattr(model, 'get_translations'):
+        #         pre_delete.connect(synchronize_deletions, sender=model)

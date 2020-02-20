@@ -30,11 +30,15 @@ modeladmin_register(LanguageModelAdmin)
 @hooks.register('after_create_page')
 def synchronize_page_create(request, page):
     print("Wagtailtrans:", "create", page)
+    if hasattr(page, 'create_translation'):
+        signals.synchronize_trees(page, created=True)
 
 
 @hooks.register('after_edit_page')
 def synchronize_page_edit(request, page):
     print("Wagtailtrans:", "edit", page)
+    if hasattr(page, 'create_translation'):
+        signals.synchronize_trees(page, created=False)
 
 
 @hooks.register('after_copy_page')
@@ -164,6 +168,9 @@ def edit_in_language_items(page, page_perms, is_parent=False):
     language they prefer.
 
     """
+    # TODO: Fix for mixin
+    return
+    
     other_languages = (
         page.specific
         .get_translations(only_live=False)
