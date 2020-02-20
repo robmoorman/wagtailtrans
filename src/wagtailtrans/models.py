@@ -110,7 +110,7 @@ class Language(models.Model):
         return force_text(dict(settings.LANGUAGES).get(self.code))
 
     def has_pages_in_site(self, site):
-        return self.pages.filter(path__startswith=site.root_page.path).exists()
+        return TranslatablePageItem.objects.filter(page__path__startswith=site.root_page.path).exists()
 
 
 class AdminTranslatablePageForm(WagtailAdminPageForm):
@@ -166,19 +166,29 @@ class TranslatablePageItem(models.Model):
 
 
 class TranslatablePageMixin:
-    @cached_property
+    @property
     def language(self):
         item = self.translatable_page_item
         if item:
             return item.language
         return None
 
-    @cached_property
+    @property
     def translatable_page_item(self):
+        # TODO: Fix to cached_property
         return TranslatablePageItem.objects.filter(page=self).first()
 
     def get_admin_display_title(self):
         return "{} ({})".format(super().get_admin_display_title(), self.language)
+
+    def has_translation(self, language):
+        """Check if page isn't already translated in given language.
+
+        :param language: Language instance
+        :return: Boolean
+
+        """
+        return TranslatablePageItem.objects.filter(inherited_page=self, language=language).exists()
 
     def create_translation(self, language, copy_fields=False, parent=None):
         """Create a translation for this page. If tree syncing is enabled the
@@ -190,10 +200,6 @@ class TranslatablePageMixin:
         :return: new Translated page (or subclass) instance
 
         """
-        print("Create translation:", self, "For language:", language)
-        
-        return
-        
         if self.has_translation(language):
             raise Exception("Translation already exists")
 
@@ -226,6 +232,23 @@ class TranslatablePageMixin:
 
         return new_page
 
+    def get_translation_parent(self, language):
+        site = self.get_site()
+
+        if not language.has_pages_in_site(site):
+            return site.root_page
+
+        translation_parent = (
+            TranslatablePageItem.objects.filter(
+                page__path__startswith=site.root_page.path,
+                inherited_page=self.get_parent(),
+                language=language,
+            )
+            .first()
+        )
+
+        return translation_parent
+
 
 class TranslatablePage(Page):
 
@@ -252,9 +275,6 @@ class TranslatablePage(Page):
     ]
 
     base_form_class = AdminTranslatablePageForm
-
-    def get_admin_display_title(self):
-        return "{} ({})".format(super().get_admin_display_title(), self.language)
 
     def serve(self, request, *args, **kwargs):
         activate(self.language.code)
@@ -322,69 +342,6 @@ class TranslatablePage(Page):
             translations = translations.live().filter(language__live=True)
 
         return translations
-
-    def has_translation(self, language):
-        """Check if page isn't already translated in given language.
-
-        :param language: Language instance
-        :return: Boolean
-
-        """
-        return language.pages.filter(canonical_page=self).exists()
-
-    def get_translation_parent(self, language):
-        site = self.get_site()
-        if not language.has_pages_in_site(site):
-            return site.root_page
-
-        translation_parent = (
-            TranslatablePage.objects
-            .filter(canonical_page=self.get_parent(), language=language, path__startswith=site.root_page.path)
-            .first()
-        )
-        return translation_parent
-
-    def create_translation(self, language, copy_fields=False, parent=None):
-        """Create a translation for this page. If tree syncing is enabled the
-        copy will also be moved to the corresponding language tree.
-
-        :param language: Language instance
-        :param copy_fields: Boolean specifying if the content should be copied
-        :param parent: Parent page instance for the translation
-        :return: new Translated page (or subclass) instance
-
-        """
-        if self.has_translation(language):
-            raise Exception("Translation already exists")
-
-        if not parent:
-            parent = self.get_translation_parent(language)
-
-        if self.slug == self.language.code:
-            slug = language.code
-        else:
-            slug = '%s-%s' % (self.slug, language.code)
-
-        update_attrs = {
-            'title': self.title,
-            'slug': slug,
-            'language': language,
-            'live': False,
-            'canonical_page': self,
-        }
-
-        if copy_fields:
-            kwargs = {'update_attrs': update_attrs}
-            if parent != self.get_parent():
-                kwargs['to'] = parent
-
-            new_page = self.copy(**kwargs)
-        else:
-            model_class = self.content_type.model_class()
-            new_page = model_class(**update_attrs)
-            parent.add_child(instance=new_page)
-
-        return new_page
 
     @cached_property
     def has_translations(self):
