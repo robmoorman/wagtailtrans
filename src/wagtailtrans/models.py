@@ -139,6 +139,36 @@ def _language_default():
         return default_language.pk
 
 
+class TranslatablePageItem(models.Model):
+    page = models.ForeignKey(
+        "wagtailcore.Page",
+        related_name="+",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+    )
+    inherited_page = models.ForeignKey(
+        "wagtailcore.Page",
+        related_name="+",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+    language = models.ForeignKey(
+        Language,
+        related_name="translatable_page_items",
+        on_delete=models.PROTECT,
+        default=_language_default
+    )
+
+    class Meta:
+        unique_together = [("page", "inherited_page", "language")]
+
+
+class TranslatablePageMixin:
+    pass
+
+
 class TranslatablePage(Page):
 
     #: Defined with a unique name, to prevent field clashes..
@@ -342,10 +372,10 @@ class TranslatableSiteRootPage(Page):
 
         """
         language = get_user_language(request)
-        candidates = TranslatablePage.objects.live().specific().child_of(self)
+        candidates = TranslatablePageItem.objects.filter(page__live=True, inherited_page=self, language=language)
         try:
-            translation = candidates.filter(language=language).get()
-            return redirect(translation.url)
+            translation = candidates.get()
+            return redirect(translation.page.url)
         except TranslatablePage.DoesNotExist:
             raise Http404
 

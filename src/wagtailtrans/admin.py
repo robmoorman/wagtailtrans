@@ -1,6 +1,11 @@
+from django.conf import settings
 from django.contrib import admin
 
 from wagtailtrans import models
+
+
+if settings.DEBUG:
+    admin.site.register(models.TranslatablePageItem)
 
 
 class LanguageAdmin(admin.ModelAdmin):

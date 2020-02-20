@@ -8,6 +8,7 @@ from wagtail.admin import widgets
 from wagtail.contrib.modeladmin.options import ModelAdmin, modeladmin_register
 from wagtail.core import hooks
 
+from wagtailtrans import signals
 from wagtailtrans.conf import get_wagtailtrans_setting
 from wagtailtrans.models import Language, TranslatablePage
 from wagtailtrans.urls import translations
@@ -24,6 +25,31 @@ class LanguageModelAdmin(ModelAdmin):
 
 
 modeladmin_register(LanguageModelAdmin)
+
+
+@hooks.register('after_create_page')
+def synchronize_page_create(request, page):
+    print("Wagtailtrans:", "create", page)
+
+
+@hooks.register('after_edit_page')
+def synchronize_page_edit(request, page):
+    print("Wagtailtrans:", "edit", page)
+
+
+@hooks.register('after_copy_page')
+def synchronize_page_copy(request, page):
+    print("Wagtailtrans:", "copy", page)
+
+
+@hooks.register('after_move_page')
+def synchronize_page_move(request, page):
+    print("Wagtailtrans:", "move", page)
+
+
+@hooks.register('after_delete_page')
+def synchronize_page_delete(request, page):
+    print("Wagtailtrans:", "delete", page)
 
 
 @hooks.register('register_admin_urls')
