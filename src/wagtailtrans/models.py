@@ -147,7 +147,7 @@ class TranslatablePageItem(models.Model):
         null=True,
         blank=True,
     )
-    inherited_page = models.ForeignKey(
+    canonical_page = models.ForeignKey(
         "wagtailcore.Page",
         related_name="+",
         on_delete=models.CASCADE,
@@ -162,7 +162,7 @@ class TranslatablePageItem(models.Model):
     )
 
     class Meta:
-        unique_together = [("page", "inherited_page", "language")]
+        unique_together = [("page", "canonical_page", "language")]
 
 
 class TranslatablePageMixin:
@@ -200,7 +200,7 @@ class TranslatablePageMixin:
         :return: Boolean
 
         """
-        return TranslatablePageItem.objects.filter(inherited_page=self, language=language).exists()
+        return TranslatablePageItem.objects.filter(canonical_page=self, language=language).exists()
 
     def create_translation(self, language, copy_fields=False, parent=None):
         """Create a translation for this page. If tree syncing is enabled the
@@ -242,7 +242,7 @@ class TranslatablePageMixin:
 
         TranslatablePageItem.objects.create(
             page=new_page,
-            inherited_page=self,
+            canonical_page=self,
             language=language,
         )
 
@@ -300,7 +300,7 @@ class TranslatablePageMixin:
         translation_parent = (
             TranslatablePageItem.objects.filter(
                 page__path__startswith=site.root_page.path,
-                inherited_page=self.get_parent(),
+                canonical_page=self.get_parent(),
                 language=language,
             )
             .first()
